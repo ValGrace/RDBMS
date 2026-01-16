@@ -6,11 +6,11 @@ type suggestionType int
 
 const (
 	Commands suggestionType = iota
+	Keywords
 )
 
 var commandSuggestions = []setprompt.Suggest{
-	{Text: "SELECT", Description: "Select data from a table"},
-	{Text: "INSERT", Description: "Insert data into a table"},
+
 	{Text: "UPDATE", Description: "Update data in a table"},
 	{Text: "DELETE", Description: "Delete data from a table"},
 	{Text: "CREATE", Description: "Create a new table or database"},
@@ -20,6 +20,12 @@ var commandSuggestions = []setprompt.Suggest{
 	{Text: "quit", Description: "Quit/Exit the prompt"},
 }
 
+var keywordSuggestions = []setprompt.Suggest{
+	{Text: "select", Description: "read data from a table"},
+	{Text: "insert", Description: "add data to a table"},
+}
+
 var suggestionsMap = map[suggestionType][]setprompt.Suggest{
 	Commands: commandSuggestions,
+	Keywords: keywordSuggestions,
 }

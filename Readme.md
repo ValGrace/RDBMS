@@ -13,3 +13,6 @@ Zerolog is minimalistic and the best logger for Embedded DBMS
 # REPL
 ~ Added a simple CLI engine to easily interface with REPL
 ~ Create a cross-platform CLI tool with live validation using prompts
+
+
+SQL Compiler -> 

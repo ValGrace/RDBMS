@@ -4,6 +4,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ValGrace/rdbms/compiler"
+	"github.com/ValGrace/rdbms/core"
 	prompt "github.com/c-bata/go-prompt"
 	"github.com/rs/zerolog/log"
 )
@@ -30,7 +32,17 @@ func getExecutor(string) func(string) {
 			log.Info().Msg("Exiting PesaPal RDBMS prompt. Goodbye! 👋")
 			os.Exit(0)
 		default:
-			//TODO: process commands here
+			if strings.HasPrefix(prStr, ".") {
+				log.Error().Msgf("Unknown command: %s", prStr)
+				break
+			}
+			// TODO: Prepare statement with sql compiler
+			stmt, res := compiler.PrepareStatement(prStr)
+			if res == compiler.SUCCESS {
+				core.ExecuteStatement(stmt)
+			} else {
+				log.Error().Msgf("Failed to execute statement: %s", res)
+			}
 		}
 	}
 
