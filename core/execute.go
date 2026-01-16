@@ -1,17 +1,17 @@
 package core
 
 import (
-	"github.com/ValGrace/rdbms/compiler"
 	"github.com/rs/zerolog/log"
+	"github.com/xwb1989/sqlparser"
 )
 
-func ExecuteStatement(stmt compiler.Statement) {
-	switch stmt.Type {
-	case compiler.Insert:
+func ExecuteStatement(stmt sqlparser.Statement) {
+	switch stmt := stmt.(type) {
+	case *sqlparser.Insert:
 		log.Info().Msg("Executing INSERT statement")
-	case compiler.Select:
+		_ = stmt
+	case *sqlparser.Select:
 		log.Info().Msg("Executing SELECT statement")
-	default:
-		log.Error().Msg("Cannot execute unknown statement type")
+		_ = stmt
 	}
 }

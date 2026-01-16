@@ -4,10 +4,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ValGrace/rdbms/compiler"
 	"github.com/ValGrace/rdbms/core"
 	prompt "github.com/c-bata/go-prompt"
 	"github.com/rs/zerolog/log"
+	"github.com/xwb1989/sqlparser"
 )
 
 func completer(d prompt.Document) []prompt.Suggest {
@@ -37,11 +37,11 @@ func getExecutor(string) func(string) {
 				break
 			}
 			// TODO: Prepare statement with sql compiler
-			stmt, res := compiler.PrepareStatement(prStr)
-			if res == compiler.SUCCESS {
+			stmt, err := sqlparser.Parse(prStr)
+			if err == nil {
 				core.ExecuteStatement(stmt)
 			} else {
-				log.Error().Msgf("Failed to execute statement: %s", res)
+				log.Error().Msgf("Failed to execute statement: %s", err)
 			}
 		}
 	}
