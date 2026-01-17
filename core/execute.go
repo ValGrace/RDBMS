@@ -41,8 +41,16 @@ func ExecuteStatement(stmt sqlparser.Statement, prStr string) {
 	case *sqlparser.Insert:
 		log.Info().Msg("Executing INSERT statement")
 		tableName := stmt.Table.Name.String()
-		if tables[tableName] == nil {
-			tables[tableName] = btree.New(3)
+		// Prefer the catalog's index if the table exists in catalog,
+		// otherwise ensure there's a btree in `tables` map.
+		var tree *btree.BTree
+		if meta, ok := catalog[tableName]; ok && meta.Index != nil {
+			tree = meta.Index
+		} else {
+			if tables[tableName] == nil {
+				tables[tableName] = btree.New(3)
+			}
+			tree = tables[tableName]
 		}
 		rows := stmt.Rows.(sqlparser.Values)
 		firstRow := rows[0]
@@ -55,11 +63,17 @@ func ExecuteStatement(stmt sqlparser.Statement, prStr string) {
 				rowData[fmt.Sprintf("col%d", i)] = string(v.Val)
 			}
 		}
-		tables[tableName].ReplaceOrInsert(Row{Key: key, Data: rowData})
+		tree.ReplaceOrInsert(Row{Key: key, Data: rowData})
 	case *sqlparser.Select:
 		log.Info().Msg("Executing SELECT")
 		tableName := stmt.From[0].(*sqlparser.AliasedTableExpr).Expr.(sqlparser.TableName).Name.String()
-		table := tables[tableName]
+		// Find the underlying btree either from catalog or tables map
+		var table *btree.BTree
+		if meta, ok := catalog[tableName]; ok && meta.Index != nil {
+			table = meta.Index
+		} else {
+			table = tables[tableName]
+		}
 		if table == nil {
 			log.Warn().Msg("Table not found")
 			return
@@ -95,16 +109,28 @@ func ExecuteStatement(stmt sqlparser.Statement, prStr string) {
 					cols = append(cols, col.Name.String())
 				}
 			}
+			// Reuse existing btree if present in `tables`, otherwise create one
+			var idx *btree.BTree
+			if tables[tableName] != nil {
+				idx = tables[tableName]
+			} else {
+				idx = btree.New(3)
+				tables[tableName] = idx
+			}
 			catalog[tableName] = &Table{
 				Name:    tableName,
 				Columns: cols,
-				Index:   btree.New(3),
+				Index:   idx,
 			}
 			log.Info().Msgf("Table %s created with columns %v", tableName, cols)
 		} else if stmt.Action == sqlparser.DropStr {
 			tableName := stmt.Table.Name.String()
 			if _, ok := catalog[tableName]; ok {
 				delete(catalog, tableName)
+				// also remove from runtime tables map
+				if _, has := tables[tableName]; has {
+					delete(tables, tableName)
+				}
 				log.Info().Msgf("Table %s dropped", tableName)
 			} else {
 				log.Warn().Msgf("Table %s does not exist", tableName)
@@ -222,8 +248,54 @@ func ExecuteStatement(stmt sqlparser.Statement, prStr string) {
 		val := comp.Right.(*sqlparser.SQLVal)
 		key, _ := strconv.Atoi(string(val.Val))
 
-		tables[tableName].Delete(Row{Key: key})
+		// Prefer catalog index if present
+		if meta, ok := catalog[tableName]; ok && meta.Index != nil {
+			meta.Index.Delete(Row{Key: key})
+		} else if tables[tableName] != nil {
+			tables[tableName].Delete(Row{Key: key})
+		} else {
+			log.Warn().Msgf("Table %s not found for DELETE", tableName)
+			break
+		}
 		log.Info().Msgf("Deleted row with key %d", key)
+	case *sqlparser.Update:
+		tableName := stmt.TableExprs[0].(*sqlparser.AliasedTableExpr).Expr.(sqlparser.TableName).Name.String()
+		tbl, ok := catalog[tableName]
+		if !ok {
+			log.Warn().Msgf("Table %s not found", tableName)
+			break
+		}
+
+		// Extract WHERE key (assume primary key = first column)
+		var key int
+		if stmt.Where != nil {
+			comp := stmt.Where.Expr.(*sqlparser.ComparisonExpr)
+			val := comp.Right.(*sqlparser.SQLVal)
+			key, _ = strconv.Atoi(string(val.Val))
+		} else {
+			log.Warn().Msg("UPDATE without WHERE not supported yet")
+			break
+		}
+
+		// Find existing row
+		item := tbl.Index.Get(Row{Key: key})
+		if item == nil {
+			log.Warn().Msgf("Row with key %d not found", key)
+			break
+		}
+		row := item.(Row)
+
+		// Apply updates
+		for _, expr := range stmt.Exprs {
+			colName := expr.Name.Name.String()
+			if v, ok := expr.Expr.(*sqlparser.SQLVal); ok {
+				row.Data[colName] = string(v.Val)
+			}
+		}
+
+		// Replace updated row back into BTree
+		tbl.Index.ReplaceOrInsert(row)
+		log.Info().Msgf("Updated row in %s: %+v", tableName, row.Data)
 
 	}
 

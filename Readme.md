@@ -39,7 +39,7 @@ SQL Compiler ->
 
 Parse the SQL statement -> transform the SQL into a relational representation -> create an execution plan that utilizes index info -> return results
 
-# DDL Operations
+# Supported Data Definition Language Operations
 1. Create Table
   ```sql
     CREATE TABLE books (id INT, title TEXT);
@@ -52,3 +52,16 @@ Parse the SQL statement -> transform the SQL into a relational representation ->
   ```sql
     DROP TABLE books;
   ```
+### Supported Data Query Language Operations
+1. SELECT ~ retrieving data from the db
+2. FROM ~ indicates the table from which to retrieve data
+3. WHERE ~ row filters
+
+#### TODOs
+[.] Implement indexing (primary and foreign keys)
+[.] Setup JOINS
+[.] Normalization through unique keying
+[.] Setup Disk persistence
+[.] Separate application logic
+[.] Create a simple api that connects to the db
+[.] Connect api to web app
