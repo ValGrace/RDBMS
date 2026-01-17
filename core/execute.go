@@ -18,7 +18,21 @@ func (r Row) Less(b btree.Item) bool {
 	return r.Key < b.(Row).Key
 }
 
+type Table struct {
+	Name    string
+	Columns []string
+	Index   *btree.BTree
+}
+
 var tables = map[string]*btree.BTree{}
+var catalog = map[string]*Table{}
+
+func ShowTables() {
+	fmt.Println("Existing tables:")
+	for name, tbl := range catalog {
+		log.Info().Msgf("Table: %s, Columns: %v", name, tbl.Columns)
+	}
+}
 
 func ExecuteStatement(stmt sqlparser.Statement) {
 	// bt := btree.New(3)
@@ -44,16 +58,45 @@ func ExecuteStatement(stmt sqlparser.Statement) {
 	case *sqlparser.Select:
 		log.Info().Msg("Executing SELECT")
 		tableName := stmt.From[0].(*sqlparser.AliasedTableExpr).Expr.(sqlparser.TableName).Name.String()
-		comp := stmt.Where.Expr.(*sqlparser.ComparisonExpr)
-		val := comp.Right.(*sqlparser.SQLVal)
-		key, _ := strconv.Atoi(string(val.Val))
-
-		item := tables[tableName].Get(Row{Key: key})
-		if item != nil {
-			log.Info().Msgf("Found row: %+v", item.(Row))
-		} else {
-			log.Info().Msg("Row not found")
+		table := tables[tableName]
+		if table == nil {
+			log.Warn().Msg("Table not found")
+			return
 		}
 
+		if stmt.Where != nil {
+			// SELECT with WHERE
+			comp := stmt.Where.Expr.(*sqlparser.ComparisonExpr)
+			val := comp.Right.(*sqlparser.SQLVal)
+			key, _ := strconv.Atoi(string(val.Val))
+
+			item := table.Get(Row{Key: key})
+			if item != nil {
+				log.Info().Msgf("Found row: %+v", item.(Row))
+			} else {
+				log.Info().Msg("Row not found")
+			}
+		} else {
+			// SELECT without WHERE → iterate all rows
+			table.Ascend(func(i btree.Item) bool {
+				row := i.(Row)
+				log.Info().Msgf("Row: %+v", row)
+				return true
+			})
+		}
+	case *sqlparser.DDL:
+		if stmt.Action == sqlparser.CreateStr {
+			tableName := stmt.NewName.Name.String()
+			log.Info().Msgf("Creating table: %s", tableName)
+			catalog[tableName] = &Table{
+				Name:    tableName,
+				Columns: []string{},
+				Index:   btree.New(3),
+			}
+		}
+	case *sqlparser.Show:
+		if stmt.Type == "tables" {
+			ShowTables()
+		}
 	}
 }

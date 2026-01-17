@@ -23,6 +23,9 @@ Zerolog is minimalistic and the best logger for Embedded DBMS
       2. Every node has a maximum and minimum number of keys ( min = max / 2)
       3. The root node can have fewer keys
       4. Bottom up creation process
+# B-Tree Implementation
+~ Determine the minimum number of nodes
+~  
 
 Every key has a record pointer
 
