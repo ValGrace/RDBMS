@@ -88,11 +88,18 @@ func ExecuteStatement(stmt sqlparser.Statement) {
 		if stmt.Action == sqlparser.CreateStr {
 			tableName := stmt.NewName.Name.String()
 			log.Info().Msgf("Creating table: %s", tableName)
+			cols := []string{}
+			if stmt.TableSpec != nil {
+				for _, col := range stmt.TableSpec.Columns {
+					cols = append(cols, col.Name.String())
+				}
+			}
 			catalog[tableName] = &Table{
 				Name:    tableName,
-				Columns: []string{},
+				Columns: cols,
 				Index:   btree.New(3),
 			}
+			log.Info().Msgf("Table %s created with columns %v", tableName, cols)
 		}
 	case *sqlparser.Show:
 		if stmt.Type == "tables" {
