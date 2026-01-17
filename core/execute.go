@@ -2,6 +2,7 @@ package core
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 
 	"github.com/google/btree"
@@ -34,7 +35,7 @@ func ShowTables() {
 	}
 }
 
-func ExecuteStatement(stmt sqlparser.Statement) {
+func ExecuteStatement(stmt sqlparser.Statement, prStr string) {
 	// bt := btree.New(3)
 	switch stmt := stmt.(type) {
 	case *sqlparser.Insert:
@@ -100,8 +101,7 @@ func ExecuteStatement(stmt sqlparser.Statement) {
 				Index:   btree.New(3),
 			}
 			log.Info().Msgf("Table %s created with columns %v", tableName, cols)
-		}
-		if stmt.Action == sqlparser.DropStr {
+		} else if stmt.Action == sqlparser.DropStr {
 			tableName := stmt.Table.Name.String()
 			if _, ok := catalog[tableName]; ok {
 				delete(catalog, tableName)
@@ -110,9 +110,148 @@ func ExecuteStatement(stmt sqlparser.Statement) {
 				log.Warn().Msgf("Table %s does not exist", tableName)
 			}
 		}
+		if stmt.Action == sqlparser.AlterStr {
+			tableName := stmt.Table.Name.String()
+			log.Warn().Msgf("Alter table operation detected on %s ", tableName)
+
+			alterOp, err := parseAlterDetails(prStr, tableName)
+			if err != nil {
+				log.Error().Msgf("Failed to parse ALTER statement: %s", err)
+				return
+			}
+
+			log.Info().Msgf("ALTER operation parsed: %+v", alterOp)
+
+			tblMeta, ok := catalog[tableName]
+			if !ok {
+				log.Error().Msgf("Table %s not found in catalog", tableName)
+				return
+			}
+
+			switch alterOp.Type {
+			case "ADD":
+				if alterOp.ObjectType == "COLUMN" {
+					// add column to catalog if not exists
+					col := alterOp.ColumnName
+					found := false
+					for _, c := range tblMeta.Columns {
+						if c == col {
+							found = true
+							break
+						}
+					}
+					if !found {
+						tblMeta.Columns = append(tblMeta.Columns, col)
+						log.Info().Msgf("Added column %s to table %s", col, tableName)
+					} else {
+						log.Warn().Msgf("Column %s already exists on table %s", col, tableName)
+					}
+
+					// update existing rows to include the new column with empty value
+					tree := tables[tableName]
+					if tree != nil {
+						var toReplace []Row
+						tree.Ascend(func(i btree.Item) bool {
+							r := i.(Row)
+							if r.Data == nil {
+								r.Data = map[string]string{}
+							}
+							if _, has := r.Data[col]; !has {
+								r.Data[col] = ""
+							}
+							toReplace = append(toReplace, r)
+							return true
+						})
+						for _, nr := range toReplace {
+							tree.ReplaceOrInsert(nr)
+						}
+					}
+				}
+			case "DROP":
+				if alterOp.ObjectType == "COLUMN" {
+					col := alterOp.ColumnName
+					// remove from catalog
+					newCols := []string{}
+					for _, c := range tblMeta.Columns {
+						if c != col {
+							newCols = append(newCols, c)
+						}
+					}
+					if len(newCols) == len(tblMeta.Columns) {
+						log.Warn().Msgf("Column %s does not exist on table %s", col, tableName)
+					} else {
+						tblMeta.Columns = newCols
+						log.Info().Msgf("Dropped column %s from table %s", col, tableName)
+					}
+
+					// remove the column key from existing rows
+					tree := tables[tableName]
+					if tree != nil {
+						var toReplace []Row
+						tree.Ascend(func(i btree.Item) bool {
+							r := i.(Row)
+							if r.Data != nil {
+								if _, has := r.Data[col]; has {
+									delete(r.Data, col)
+								}
+							}
+							toReplace = append(toReplace, r)
+							return true
+						})
+						for _, nr := range toReplace {
+							tree.ReplaceOrInsert(nr)
+						}
+					}
+				}
+			default:
+				log.Warn().Msgf("Unhandled ALTER operation: %+v", alterOp)
+			}
+
+			return
+
+		}
+
 	case *sqlparser.Show:
 		if stmt.Type == "tables" {
 			ShowTables()
 		}
 	}
+}
+
+type AlterOperation struct {
+	Type       string // "ADD", "DROP", etc.
+	ObjectType string // "COLUMN", "INDEX", etc.
+	ColumnName string // for column operations
+	Table      string // table name from sqlparser
+}
+
+func parseAlterDetails(sql string, tableName string) (*AlterOperation, error) {
+	// Simple regex-based parsing for common ALTER patterns
+	// This is a basic example - you'd need more sophisticated parsing for production
+
+	addColumnRegex := regexp.MustCompile(`(?i)ALTER\s+TABLE\s+\w+\s+ADD\s+(?:COLUMN\s+)?(\w+)`)
+	dropColumnRegex := regexp.MustCompile(`(?i)ALTER\s+TABLE\s+\w+\s+DROP\s+(?:COLUMN\s+)?(\w+)`)
+
+	if matches := addColumnRegex.FindStringSubmatch(sql); matches != nil {
+		return &AlterOperation{
+			Type:       "ADD",
+			ObjectType: "COLUMN",
+			ColumnName: matches[1],
+			Table:      tableName,
+		}, nil
+	}
+
+	if matches := dropColumnRegex.FindStringSubmatch(sql); matches != nil {
+		return &AlterOperation{
+			Type:       "DROP",
+			ObjectType: "COLUMN",
+			ColumnName: matches[1],
+			Table:      tableName,
+		}, nil
+	}
+
+	return &AlterOperation{
+		Type:  "UNKNOWN",
+		Table: tableName,
+	}, nil
 }

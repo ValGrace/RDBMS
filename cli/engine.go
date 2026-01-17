@@ -39,7 +39,7 @@ func getExecutor(string) func(string) {
 			// TODO: Prepare statement with sql compiler
 			stmt, err := sqlparser.Parse(prStr)
 			if err == nil {
-				core.ExecuteStatement(stmt)
+				core.ExecuteStatement(stmt, prStr)
 			} else {
 				log.Error().Msgf("Failed to execute statement: %s", err)
 			}
