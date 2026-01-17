@@ -101,6 +101,15 @@ func ExecuteStatement(stmt sqlparser.Statement) {
 			}
 			log.Info().Msgf("Table %s created with columns %v", tableName, cols)
 		}
+		if stmt.Action == sqlparser.DropStr {
+			tableName := stmt.Table.Name.String()
+			if _, ok := catalog[tableName]; ok {
+				delete(catalog, tableName)
+				log.Info().Msgf("Table %s dropped", tableName)
+			} else {
+				log.Warn().Msgf("Table %s does not exist", tableName)
+			}
+		}
 	case *sqlparser.Show:
 		if stmt.Type == "tables" {
 			ShowTables()
