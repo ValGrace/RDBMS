@@ -215,7 +215,18 @@ func ExecuteStatement(stmt sqlparser.Statement, prStr string) {
 		if stmt.Type == "tables" {
 			ShowTables()
 		}
+	case *sqlparser.Delete:
+		log.Info().Msg("Executing DELETE")
+		tableName := stmt.TableExprs[0].(*sqlparser.AliasedTableExpr).Expr.(sqlparser.TableName).Name.String()
+		comp := stmt.Where.Expr.(*sqlparser.ComparisonExpr)
+		val := comp.Right.(*sqlparser.SQLVal)
+		key, _ := strconv.Atoi(string(val.Val))
+
+		tables[tableName].Delete(Row{Key: key})
+		log.Info().Msgf("Deleted row with key %d", key)
+
 	}
+
 }
 
 type AlterOperation struct {

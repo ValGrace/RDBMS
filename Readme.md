@@ -38,3 +38,17 @@ SQL Compiler ->
 4. Transaction management
 
 Parse the SQL statement -> transform the SQL into a relational representation -> create an execution plan that utilizes index info -> return results
+
+# DDL Operations
+1. Create Table
+  ```sql
+    CREATE TABLE books (id INT, title TEXT);
+  ```
+2. Alter Table 
+  ```sql
+    ALTER TABLE books ADD COLUMN author TEXT;
+ ```
+3. Drop Table
+  ```sql
+    DROP TABLE books;
+  ```
