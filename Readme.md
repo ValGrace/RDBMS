@@ -58,7 +58,7 @@ Parse the SQL statement -> transform the SQL into a relational representation ->
 3. WHERE ~ row filters
 
 #### TODOs
-[.] Implement indexing (primary and foreign keys)
+[.] Enforce indexing (primary and foreign keys)
 [.] Setup JOINS
 [.] Normalization through unique keying
 [.] Setup Disk persistence

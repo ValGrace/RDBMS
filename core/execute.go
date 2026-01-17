@@ -19,10 +19,28 @@ func (r Row) Less(b btree.Item) bool {
 	return r.Key < b.(Row).Key
 }
 
+// Enforce unique contraints on string columns
+type IndexItem struct {
+	Value string
+	Pk    int
+}
+
+// Less implements btree.Item for the Unique index
+func (i IndexItem) Less(b btree.Item) bool {
+	return i.Value < b.(IndexItem).Value
+}
+
 type Table struct {
 	Name    string
 	Columns []string
-	Index   *btree.BTree
+
+	PkColumn string
+
+	// Index Stores the actual data sorted by primary key
+	Index *btree.BTree
+
+	// UniqueIndexes maps column name to its unique index BTree
+	UniqueIndexes map[string]*btree.BTree
 }
 
 var tables = map[string]*btree.BTree{}
@@ -34,7 +52,19 @@ func ShowTables() {
 		log.Info().Msgf("Table: %s, Columns: %v", name, tbl.Columns)
 	}
 }
+func VerifyTable(tableName string) {
+	for name, tbl := range catalog {
+		log.Info().Msgf("Catalog contains table: %s", name)
 
+		log.Info().Msgf("Table: %s", name)
+		log.Info().Msgf("Primary Key: %s", tbl.PkColumn)
+		log.Info().Msgf("Unique Indexes count: %d", len(tbl.UniqueIndexes))
+		for colName := range tbl.UniqueIndexes {
+			log.Info().Msgf("Unique Index on column: %s", colName)
+		}
+	}
+
+}
 func ExecuteStatement(stmt sqlparser.Statement, prStr string) {
 	// bt := btree.New(3)
 	switch stmt := stmt.(type) {
@@ -103,34 +133,49 @@ func ExecuteStatement(stmt sqlparser.Statement, prStr string) {
 		if stmt.Action == sqlparser.CreateStr {
 			tableName := stmt.NewName.Name.String()
 			log.Info().Msgf("Creating table: %s", tableName)
-			cols := []string{}
+
+			// Initialize the new table
+			newTable := &Table{
+				Name:          tableName,
+				Columns:       []string{},
+				Index:         btree.New(2),
+				UniqueIndexes: make(map[string]*btree.BTree),
+			}
+
 			if stmt.TableSpec != nil {
 				for _, col := range stmt.TableSpec.Columns {
-					cols = append(cols, col.Name.String())
+					newTable.Columns = append(newTable.Columns, col.Name.String())
+
 				}
+				for _, index := range stmt.TableSpec.Indexes {
+
+					if index.Info.Primary {
+						colName := index.Columns[0].Column.String()
+						newTable.PkColumn = colName
+						log.Info().Msgf("Set Primary Key to Column: %s", colName)
+					}
+					if index.Info.Unique {
+
+						colName := index.Columns[0].Column.String()
+						// Create a separate BTree to track uniqueness for this column
+						newTable.UniqueIndexes[colName] = btree.New(2)
+						log.Info().Msgf("Created Unique Index for column: %s", colName)
+
+					}
+				}
+
 			}
-			// Reuse existing btree if present in `tables`, otherwise create one
-			var idx *btree.BTree
-			if tables[tableName] != nil {
-				idx = tables[tableName]
-			} else {
-				idx = btree.New(3)
-				tables[tableName] = idx
-			}
-			catalog[tableName] = &Table{
-				Name:    tableName,
-				Columns: cols,
-				Index:   idx,
-			}
-			log.Info().Msgf("Table %s created with columns %v", tableName, cols)
-		} else if stmt.Action == sqlparser.DropStr {
+			catalog[tableName] = newTable
+			log.Info().Msgf("Table %s created with columns %v", tableName, newTable.Columns)
+
+		}
+
+		if stmt.Action == sqlparser.DropStr {
 			tableName := stmt.Table.Name.String()
 			if _, ok := catalog[tableName]; ok {
 				delete(catalog, tableName)
 				// also remove from runtime tables map
-				if _, has := tables[tableName]; has {
-					delete(tables, tableName)
-				}
+				delete(tables, tableName)
 				log.Info().Msgf("Table %s dropped", tableName)
 			} else {
 				log.Warn().Msgf("Table %s does not exist", tableName)
@@ -217,9 +262,8 @@ func ExecuteStatement(stmt sqlparser.Statement, prStr string) {
 						tree.Ascend(func(i btree.Item) bool {
 							r := i.(Row)
 							if r.Data != nil {
-								if _, has := r.Data[col]; has {
-									delete(r.Data, col)
-								}
+								delete(r.Data, col)
+
 							}
 							toReplace = append(toReplace, r)
 							return true
@@ -240,6 +284,11 @@ func ExecuteStatement(stmt sqlparser.Statement, prStr string) {
 	case *sqlparser.Show:
 		if stmt.Type == "tables" {
 			ShowTables()
+		}
+		if stmt.Type == "index" {
+			tableName := stmt.OnTable.Name.String()
+
+			VerifyTable(tableName)
 		}
 	case *sqlparser.Delete:
 		log.Info().Msg("Executing DELETE")
