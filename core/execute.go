@@ -109,6 +109,15 @@ func ExecuteStatement(stmt sqlparser.Statement, prStr string) {
 			return
 		}
 
+		join := stmt.From[0].(*sqlparser.JoinTableExpr)
+		left := join.LeftExpr.(*sqlparser.AliasedTableExpr).Expr.(sqlparser.TableName).Name.String()
+		right := join.RightExpr.(*sqlparser.AliasedTableExpr).Expr.(sqlparser.TableName).Name.String()
+		results := executeJoin(catalog[left], catalog[right], join.Condition.On.(*sqlparser.ComparisonExpr))
+
+		for _, row := range results {
+			log.Info().Msgf("Joined Row: %+v", row)
+		}
+
 		if stmt.Where != nil {
 			// SELECT with WHERE
 			comp := stmt.Where.Expr.(*sqlparser.ComparisonExpr)
