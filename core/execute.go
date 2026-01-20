@@ -41,6 +41,7 @@ type Table struct {
 
 	// UniqueIndexes maps column name to its unique index BTree
 	UniqueIndexes map[string]*btree.BTree
+	Constraint    []Constraint
 }
 
 var tables = map[string]*btree.BTree{}
