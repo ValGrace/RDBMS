@@ -172,6 +172,7 @@ func ExecuteStatement(stmt sqlparser.Statement, prStr string) {
 						log.Info().Msgf("Created Unique Index for column: %s", colName)
 
 					}
+
 				}
 
 			}
@@ -220,7 +221,9 @@ func ExecuteStatement(stmt sqlparser.Statement, prStr string) {
 							found = true
 							break
 						}
+						found = false
 					}
+
 					if !found {
 						tblMeta.Columns = append(tblMeta.Columns, col)
 						log.Info().Msgf("Added column %s to table %s", col, tableName)
@@ -248,6 +251,7 @@ func ExecuteStatement(stmt sqlparser.Statement, prStr string) {
 						}
 					}
 				}
+
 			case "DROP":
 				if alterOp.ObjectType == "COLUMN" {
 					col := alterOp.ColumnName
