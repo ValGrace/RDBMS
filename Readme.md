@@ -58,8 +58,8 @@ Parse the SQL statement -> transform the SQL into a relational representation ->
 3. WHERE ~ row filters
 
 #### TODOs
-[.] Enforce indexing (primary and foreign keys) 
-[.] Setup JOINS
+[.] Enforce indexing (primary, unique and foreign keys) 
+[.] Setup JOINS (INNER, OUTER, NATURAL)
 [.] Normalization through unique keying
 [.] Setup Disk persistence
 [.] Separate application logic

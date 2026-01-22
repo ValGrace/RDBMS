@@ -29,7 +29,7 @@ func getExecutor(string) func(string) {
 		case "":
 			return
 		case "exit", "quit":
-			log.Info().Msg("Exiting PesaPal RDBMS prompt. Goodbye! 👋")
+			log.Info().Msg("Exiting RDBMS prompt. Goodbye! 👋")
 			os.Exit(0)
 		default:
 			if strings.HasPrefix(prStr, ".") {
