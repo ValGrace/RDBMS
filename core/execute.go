@@ -94,6 +94,10 @@ func ExecuteStatement(stmt sqlparser.Statement, prStr string) {
 				rowData[fmt.Sprintf("col%d", i)] = string(v.Val)
 			}
 		}
+		if err := enforceForeignKey(catalog[tableName], Row{Key: key, Data: rowData}, catalog); err != nil {
+			log.Error().Msgf("Foreign key constraint violation: %s", err)
+			return
+		}
 		tree.ReplaceOrInsert(Row{Key: key, Data: rowData})
 	case *sqlparser.Select:
 		log.Info().Msg("Executing SELECT")
